@@ -213,6 +213,52 @@ Agent: Email to customer@external.com sent successfully.
 
 Notice how clean the transition is: the agent pauses the turn, Firestore acts as the state synchronization layer, the reviewer edits the email content directly in the UI, and the handler swaps out the `body` argument before letting the underlying `send_email` tool execute.
 
+## From CLI Demo to Production Architecture
+
+If you're looking at this demo and asking: *"Why do I need to chat with the agent in a terminal loop to trigger the email? Isn't the agent supposed to run autonomously in the background?"* 
+
+The answer is yes. The interactive chat loop in this local demo is purely for **simulation and developer testing**—allowing you to play the role of the customer and see the escrow halt execution in real time.
+
+In a real production environment, you don't interact with the agent via command-line. Instead, you design the agent using one of two production architectures:
+
+### 1. The Autonomous Background Worker (Event-Driven)
+The agent process runs continuously on a server (like Cloud Run or a Kubernetes pod) and uses SDK **Triggers** to listen for incoming customer inquiries:
+
+```python
+from google.antigravity.triggers import every, TriggerContext
+
+async def poll_support_inbox(ctx: TriggerContext):
+    # 1. Fetch new unread customer support tickets
+    tickets = await support_api.get_unread_tickets()
+    
+    for ticket in tickets:
+        # 2. Push the customer query to the agent session
+        await ctx.send(f"Customer inquiry from {ticket.email}: {ticket.message}")
+
+# Poll the support API every 60 seconds
+support_poll_trigger = every(60, poll_support_inbox)
+
+config = LocalAgentConfig(
+    triggers=[support_poll_trigger],
+    policies=policies,
+    tools=[search_knowledge_base, send_email]
+)
+```
+
+In this setup, the agent polls, thinks, drafts, hits the safety policy, and posts to Slack completely autonomously. It only halts when it tries to email the customer, waiting for the human to approve or edit the response.
+
+### 2. The Serverless Webhook Handler (Request-Response)
+Alternatively, you can run the agent inside a serverless handler. When a webhook fires (e.g. a new ticket created in Zendesk or Salesforce), it spins up a transient agent session:
+
+```python
+@app.post("/webhooks/new-ticket")
+async def handle_new_ticket(ticket: Ticket):
+    # Spin up a transient session to process this single customer ticket
+    async with Agent(config) as agent:
+        response = await agent.chat(f"Reply to customer ticket: {ticket.body}")
+    return {"status": "processing"}
+```
+
 ## What I found digging into the rest of the Antigravity ecosystem
 
 While putting this demo together, I confirmed something interesting looking at how Google structured the security layers in the Google Antigravity SDK: the approval pattern doesn't live at the level of a single tool. The platform supports standard Python **lifecycle hooks** that intercept agent behavior at different execution boundaries:
