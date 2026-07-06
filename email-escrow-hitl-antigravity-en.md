@@ -238,4 +238,4 @@ For your next sprint, my concrete recommendation: don't start by showing the ful
 
 ---
 
-*Building something similar for your team? I've open-sourced a complete, runnable code example of this entire setup—including the local FastAPI dashboard and the Firestore/Slack configurations—in my [GitHub Repository](https://github.com/your-username/your-repo-name). Feel free to clone it and adapt it for your needs!*
+*Building something similar for your team? I've open-sourced a complete, runnable code example of this entire setup—including the local FastAPI dashboard and the Firestore/Slack configurations—in my [GitHub Repository](https://github.com/foward/email-escrow-hitl-antigravity). Feel free to clone it and adapt it for your needs!*
